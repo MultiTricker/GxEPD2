@@ -359,10 +359,28 @@ void GxEPD2_1020_GDEM102T91::_InitDisplay()
   _writeData(0x7F);
   _writeData(0x02);
   _writeData(0x00);
+      _writeCommand(0x11);  // Data entry mode
+      _writeData(0x01);
+      _writeCommand(0x44);
+      _writeData(0x00); // RAM x address start at 0
+      _writeData(0x00);
+      _writeData(0xBF); // RAM x address end at 36Fh -> 879
+      _writeData(0x03);
+      _writeCommand(0x45);
+      _writeData(0x7F); // RAM y address start at 20Fh;
+      _writeData(0x02);
+      _writeData(0x00); // RAM y address end at 00h;
+      _writeData(0x00);
   _writeCommand(0x3C); // VBD
   _writeData(0x01); // LUT1, for white
   _writeCommand(0x18);
   _writeData(0x80);
+      _writeCommand(0x4E); 
+      _writeData(0x00);
+      _writeData(0x00);
+      _writeCommand(0x4F); 
+      _writeData(0x7F);
+      _writeData(0x02);
   _setPartialRamArea(0, 0, WIDTH, HEIGHT);
   _init_display_done = true;
 }
