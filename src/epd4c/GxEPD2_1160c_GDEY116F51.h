@@ -3,7 +3,7 @@
 //
 // based on Demo Example from Good Display: https://www.good-display.com/comp/xcompanyFile/downloadNew.do?appId=24&fid=2047&id=1477
 // Panel: GDEY116F51 : https://www.good-display.com/product/543.html
-// Controller: SSD2677 : https://v4.cecdn.yun300.cn/100001_1909185148/SSD2677%28Rev1.1%29.pdf
+// Controller: ?, no specs, see GDEY116F51 panel specs for command list subset
 //
 // Author: Jean-Marc Zingg
 //
