@@ -81,6 +81,9 @@
 #if __has_include("epd4c/GxEPD2_750c_GDEM075F52.h")
 #include "epd4c/GxEPD2_750c_GDEM075F52.h"
 #endif
+#if __has_include("epd4c/GxEPD2_750c_GDEM075F52.h")
+#include "epd4c/GxEPD2_750c_GDEM075F52.h"
+#endif
 #if __has_include("epd4c/GxEPD2_1160c_GDEY116F51.h")
 #include "epd4c/GxEPD2_1160c_GDEY116F51.h"
 #endif
