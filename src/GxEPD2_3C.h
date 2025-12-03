@@ -113,6 +113,8 @@
 #endif
 #if __has_include("gdey3c/GxEPD2_750c_GDEY075Z08.h")
 #include "gdey3c/GxEPD2_750c_GDEY075Z08.h"
+#if __has_include("epd3c/GxEPD2_074c_E2741FS081.h")
+#include "epd3c/GxEPD2_074c_E2741FS081.h"
 #endif
 #if __has_include("gdey3c/GxEPD2_1160c_GDEY116Z91.h")
 #include "gdey3c/GxEPD2_1160c_GDEY116Z91.h"
