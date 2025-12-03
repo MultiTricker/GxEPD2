@@ -3,7 +3,7 @@
 //
 // based on Demo Example from Good Display: https://www.good-display.com/comp/xcompanyFile/downloadNew.do?appId=24&fid=2047&id=1477
 // Panel: GDEY116F51 : https://www.good-display.com/product/543.html
-// Controller: SSD2677 : https://v4.cecdn.yun300.cn/100001_1909185148/SSD2677%28Rev1.1%29.pdf
+// Controller: ?, no specs, see GDEY116F51 panel specs for command list subset
 //
 // Author: Jean-Marc Zingg
 //
@@ -14,7 +14,7 @@
 #include "GxEPD2_1160c_GDEY116F51.h"
 
 GxEPD2_1160c_GDEY116F51::GxEPD2_1160c_GDEY116F51(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
-  GxEPD2_EPD(cs, dc, rst, busy, LOW, 25000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
+  GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
 {
   _paged = false;
 }
@@ -39,7 +39,6 @@ void GxEPD2_1160c_GDEY116F51::writeScreenBuffer(uint8_t black_value, uint8_t col
 {
   //Serial.println("writeScreenBuffer");
   if (!_init_display_done) _InitDisplay();
-  _setPartialRamArea(0, 0, WIDTH, HEIGHT, false);
   _writeCommand(0x10);
   _startTransfer();
   for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 4; i++)
