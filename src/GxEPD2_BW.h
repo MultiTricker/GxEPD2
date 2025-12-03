@@ -202,6 +202,9 @@
 #if __has_include("gdey/GxEPD2_750_GDEY075T7.h")
 #include "gdey/GxEPD2_750_GDEY075T7.h"
 #endif
+#if __has_include("epd/GxEPD2_074_E2741CS0B2.h")
+#include "epd/GxEPD2_074_E2741CS0B2.h"
+#endif
 #if __has_include("gdem/GxEPD2_1020_GDEM102T91.h")
 #include "gdem/GxEPD2_1020_GDEM102T91.h"
 #endif

@@ -134,6 +134,9 @@ class GxEPD2
       GDEY073D46,
       ACeP730,     Waveshare_7_30_7c = ACeP730,
       GDEP073E01,
+      // Pervasive Displays
+      E2741FS081,  // 7.4" 3-color BWR
+      E2741CS0B2,  // 7.4" B/W
     };
 };
 
