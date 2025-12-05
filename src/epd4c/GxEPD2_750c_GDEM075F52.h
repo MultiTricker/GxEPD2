@@ -27,11 +27,10 @@ class GxEPD2_750c_GDEM075F52 : public GxEPD2_EPD
     static const bool hasColor = true;
     static const bool hasPartialUpdate = true; // can be switched off
     static const bool hasFastPartialUpdate = false;
-    static const bool useFastFullUpdate = false; // set false to avoid residues, set false for extended (low) temperature range
-    static const uint16_t power_on_time = 150; // ms, e.g. 138000us
-    static const uint16_t power_off_time = 100; // ms, e.g. 82000us
-    static const uint16_t full_refresh_time = 21000; // ms, e.g. 20918000us
-    static const uint16_t partial_refresh_time = 21000; // ms, e.g. 20918000us
+    static const uint16_t power_on_time = 100; // ms, e.g. 65197us
+    static const uint16_t power_off_time = 100; // ms, e.g. 84464us
+    static const uint16_t full_refresh_time = 23000; // ms, e.g. ~35 seconds for 4-color
+    static const uint16_t partial_refresh_time = 23000; // ms, e.g. ~35 seconds
     // constructor
     GxEPD2_750c_GDEM075F52(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
     // methods (virtual)
