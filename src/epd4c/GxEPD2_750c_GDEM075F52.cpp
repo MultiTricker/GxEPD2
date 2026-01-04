@@ -1,5 +1,6 @@
-// Display Library for SPI e-paper panels from Dalian Good Display and boards from Waveshare.
-// Requires HW SPI and Adafruit_GFX. Caution: the e-paper panels require 3.3V supply AND data lines!
+// Display Library for SPI e-paper panels from Dalian Good Display and boards
+// from Waveshare. Requires HW SPI and Adafruit_GFX. Caution: the e-paper panels
+// require 3.3V supply AND data lines!
 //
 // based on Demo Example from Good Display: https://www.good-display.com/companyfile/1519.html
 // Panel: GDEM075F52 : https://www.good-display.com/product/546.html
@@ -13,9 +14,10 @@
 
 #include "GxEPD2_750c_GDEM075F52.h"
 
-GxEPD2_750c_GDEM075F52::GxEPD2_750c_GDEM075F52(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
-  GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
-{
+GxEPD2_750c_GDEM075F52::GxEPD2_750c_GDEM075F52(int16_t cs, int16_t dc,
+                                               int16_t rst, int16_t busy)
+    : GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel,
+                 hasColor, hasPartialUpdate, hasFastPartialUpdate) {
   _paged = false;
   _use_fast_update = useFastFullUpdate;
 }
@@ -29,40 +31,40 @@ void GxEPD2_750c_GDEM075F52::selectFastFullUpdate(bool ff)
   }
 }
 
-void GxEPD2_750c_GDEM075F52::clearScreen(uint8_t value)
-{
+void GxEPD2_750c_GDEM075F52::clearScreen(uint8_t value) {
   clearScreen(value, 0xFF);
 }
 
-void GxEPD2_750c_GDEM075F52::clearScreen(uint8_t black_value, uint8_t color_value)
-{
+void GxEPD2_750c_GDEM075F52::clearScreen(uint8_t black_value,
+                                         uint8_t color_value) {
   writeScreenBuffer(black_value, color_value);
   refresh();
 }
 
-void GxEPD2_750c_GDEM075F52::writeScreenBuffer(uint8_t value)
-{
+void GxEPD2_750c_GDEM075F52::writeScreenBuffer(uint8_t value) {
   writeScreenBuffer(value, 0xFF);
 }
 
-void GxEPD2_750c_GDEM075F52::writeScreenBuffer(uint8_t black_value, uint8_t color_value)
-{
-  //Serial.println("writeScreenBuffer");
-  if (!_init_display_done) _InitDisplay();
+void GxEPD2_750c_GDEM075F52::writeScreenBuffer(uint8_t black_value,
+                                               uint8_t color_value) {
+  // Serial.println("writeScreenBuffer");
+  if (!_init_display_done)
+    _InitDisplay();
   _writeCommand(0x10);
   _startTransfer();
-  for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 4; i++)
-  {
+  for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 4; i++) {
     _transfer(0xFF == black_value ? 0x55 : 0x00);
   }
   _endTransfer();
   _initial_write = false; // initial full screen buffer clean done
 }
 
-void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  //Serial.print("writeImage("); Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
+void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t bitmap[], int16_t x,
+                                        int16_t y, int16_t w, int16_t h,
+                                        bool invert, bool mirror_y, bool pgm) {
+  // Serial.print("writeImage("); Serial.print(x); Serial.print(", ");
+  // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
+  // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if (!_init_display_done) _InitDisplay();
   if (_initial_write) writeScreenBuffer();
@@ -184,12 +186,17 @@ void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t bitmap[], int16_t x, int16
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  if (!black && !color) return;
-  if (!color) return writeImage(black, x, y, w, h, invert, mirror_y, pgm);
-  //Serial.print("writeImage("); Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
+void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t *black,
+                                        const uint8_t *color, int16_t x,
+                                        int16_t y, int16_t w, int16_t h,
+                                        bool invert, bool mirror_y, bool pgm) {
+  if (!black && !color)
+    return;
+  if (!color)
+    return writeImage(black, x, y, w, h, invert, mirror_y, pgm);
+  // Serial.print("writeImage("); Serial.print(x); Serial.print(", ");
+  // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
+  // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if (!_init_display_done) _InitDisplay();
   if (_initial_write) writeScreenBuffer();
@@ -344,30 +351,39 @@ void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t* black, const uint8_t* col
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
-    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  //Serial.print("writeImagePart("); Serial.print(x_part); Serial.print(", "); Serial.print(y_part); Serial.print(", ");
-  //Serial.print(w_bitmap); Serial.print(", "); Serial.print(h_bitmap); Serial.print(", ");
-  //Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
+void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t bitmap[],
+                                            int16_t x_part, int16_t y_part,
+                                            int16_t w_bitmap, int16_t h_bitmap,
+                                            int16_t x, int16_t y, int16_t w,
+                                            int16_t h, bool invert,
+                                            bool mirror_y, bool pgm) {
+  // Serial.print("writeImagePart("); Serial.print(x_part); Serial.print(", ");
+  // Serial.print(y_part); Serial.print(", "); Serial.print(w_bitmap);
+  // Serial.print(", "); Serial.print(h_bitmap); Serial.print(", ");
+  // Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
+  // Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
-  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0)) return;
-  if ((x_part < 0) || (x_part >= w_bitmap)) return;
-  if ((y_part < 0) || (y_part >= h_bitmap)) return;
+  if (!_init_display_done)
+    _InitDisplay();
+  if (_initial_write)
+    writeScreenBuffer();
+  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0))
+    return;
+  if ((x_part < 0) || (x_part >= w_bitmap))
+    return;
+  if ((y_part < 0) || (y_part >= h_bitmap))
+    return;
   int16_t wb_bitmap = (w_bitmap + 7) / 8; // width bytes, bitmaps are padded
-  x_part -= x_part % 8; // byte boundary
+  x_part -= x_part % 8;                   // byte boundary
   w = w_bitmap - x_part < w ? w_bitmap - x_part : w; // limit
   h = h_bitmap - y_part < h ? h_bitmap - y_part : h; // limit
   // make x, w multiple of 8
-  w += x % 8; // adjust for byte boundary of x
-  x -= x % 8; // byte boundary ox
-  w = 8 * ((w + 7) / 8); // byte boundary, bitmaps are padded
+  w += x % 8;                 // adjust for byte boundary of x
+  x -= x % 8;                 // byte boundary ox
+  w = 8 * ((w + 7) / 8);      // byte boundary, bitmaps are padded
   int16_t x1 = x < 0 ? 0 : x; // limit
   int16_t y1 = y < 0 ? 0 : y; // limit
-  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
+  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x;   // limit
   int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
   int16_t dx = x1 - x;
   int16_t dy = y1 - y;
@@ -451,32 +467,42 @@ void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t bitmap[], int16_t x_pa
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
-    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  //Serial.print("writeImagePart("); Serial.print(x_part); Serial.print(", "); Serial.print(y_part); Serial.print(", ");
-  //Serial.print(w_bitmap); Serial.print(", "); Serial.print(h_bitmap); Serial.print(", ");
-  //Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
-  if (!black && !color) return;
-  if (!color) return writeImagePart(black, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
+void GxEPD2_750c_GDEM075F52::writeImagePart(
+    const uint8_t *black, const uint8_t *color, int16_t x_part, int16_t y_part,
+    int16_t w_bitmap, int16_t h_bitmap, int16_t x, int16_t y, int16_t w,
+    int16_t h, bool invert, bool mirror_y, bool pgm) {
+  // Serial.print("writeImagePart("); Serial.print(x_part); Serial.print(", ");
+  // Serial.print(y_part); Serial.print(", "); Serial.print(w_bitmap);
+  // Serial.print(", "); Serial.print(h_bitmap); Serial.print(", ");
+  // Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
+  // Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
+  if (!black && !color)
+    return;
+  if (!color)
+    return writeImagePart(black, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h,
+                          invert, mirror_y, pgm);
+  if (!_init_display_done)
+    _InitDisplay();
+  if (_initial_write)
+    writeScreenBuffer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0)) return;
-  if ((x_part < 0) || (x_part >= w_bitmap)) return;
-  if ((y_part < 0) || (y_part >= h_bitmap)) return;
+  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0))
+    return;
+  if ((x_part < 0) || (x_part >= w_bitmap))
+    return;
+  if ((y_part < 0) || (y_part >= h_bitmap))
+    return;
   int16_t wb_bitmap = (w_bitmap + 7) / 8; // width bytes, bitmaps are padded
-  x_part -= x_part % 8; // byte boundary
+  x_part -= x_part % 8;                   // byte boundary
   w = w_bitmap - x_part < w ? w_bitmap - x_part : w; // limit
   h = h_bitmap - y_part < h ? h_bitmap - y_part : h; // limit
   // make x, w multiple of 8
-  w += x % 8; // adjust for byte boundary of x
-  x -= x % 8; // byte boundary ox
-  w = 8 * ((w + 7) / 8); // byte boundary, bitmaps are padded
+  w += x % 8;                 // adjust for byte boundary of x
+  x -= x % 8;                 // byte boundary ox
+  w = 8 * ((w + 7) / 8);      // byte boundary, bitmaps are padded
   int16_t x1 = x < 0 ? 0 : x; // limit
   int16_t y1 = y < 0 ? 0 : y; // limit
-  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
+  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x;   // limit
   int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
   int16_t dx = x1 - x;
   int16_t dy = y1 - y;
@@ -581,11 +607,15 @@ void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t* black, const uint8_t*
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::writeNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  if (!data1) return;
-  //Serial.print("writeNative("); Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
+void GxEPD2_750c_GDEM075F52::writeNative(const uint8_t *data1,
+                                         const uint8_t *data2, int16_t x,
+                                         int16_t y, int16_t w, int16_t h,
+                                         bool invert, bool mirror_y, bool pgm) {
+  if (!data1)
+    return;
+  // Serial.print("writeNative("); Serial.print(x); Serial.print(", ");
+  // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
+  // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if (!_init_display_done) _InitDisplay();
   if (_initial_write) writeScreenBuffer();
@@ -695,26 +725,33 @@ void GxEPD2_750c_GDEM075F52::writeNative(const uint8_t* data1, const uint8_t* da
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::writeNativePart(const uint8_t* data1, const uint8_t* data2, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
-    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  if (!data1) return;
+void GxEPD2_750c_GDEM075F52::writeNativePart(
+    const uint8_t *data1, const uint8_t *data2, int16_t x_part, int16_t y_part,
+    int16_t w_bitmap, int16_t h_bitmap, int16_t x, int16_t y, int16_t w,
+    int16_t h, bool invert, bool mirror_y, bool pgm) {
+  if (!data1)
+    return;
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
-  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0)) return;
-  if ((x_part < 0) || (x_part >= w_bitmap)) return;
-  if ((y_part < 0) || (y_part >= h_bitmap)) return;
+  if (!_init_display_done)
+    _InitDisplay();
+  if (_initial_write)
+    writeScreenBuffer();
+  if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0))
+    return;
+  if ((x_part < 0) || (x_part >= w_bitmap))
+    return;
+  if ((y_part < 0) || (y_part >= h_bitmap))
+    return;
   int16_t wb_bitmap = (w_bitmap + 3) / 4; // width bytes, bitmaps are padded
-  x_part -= x_part % 4; // byte boundary
+  x_part -= x_part % 4;                   // byte boundary
   w = w_bitmap - x_part < w ? w_bitmap - x_part : w; // limit
   h = h_bitmap - y_part < h ? h_bitmap - y_part : h; // limit
-  w += x % 4; // adjust for byte boundary of x
-  x -= x % 4; // byte boundary
-  w = 4 * ((w + 3) / 4); // byte boundary, bitmaps are padded
+  w += x % 4;                 // adjust for byte boundary of x
+  x -= x % 4;                 // byte boundary
+  w = 4 * ((w + 3) / 4);      // byte boundary, bitmaps are padded
   int16_t x1 = x < 0 ? 0 : x; // limit
   int16_t y1 = y < 0 ? 0 : y; // limit
-  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
+  int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x;   // limit
   int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
   int16_t dx = x1 - x;
   int16_t dy = y1 - y;
@@ -788,34 +825,45 @@ void GxEPD2_750c_GDEM075F52::writeNativePart(const uint8_t* data1, const uint8_t
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_750c_GDEM075F52::drawImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
+void GxEPD2_750c_GDEM075F52::drawImage(const uint8_t bitmap[], int16_t x,
+                                       int16_t y, int16_t w, int16_t h,
+                                       bool invert, bool mirror_y, bool pgm) {
   writeImage(bitmap, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
 }
 
-void GxEPD2_750c_GDEM075F52::drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
-    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  writeImagePart(bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
+void GxEPD2_750c_GDEM075F52::drawImagePart(const uint8_t bitmap[],
+                                           int16_t x_part, int16_t y_part,
+                                           int16_t w_bitmap, int16_t h_bitmap,
+                                           int16_t x, int16_t y, int16_t w,
+                                           int16_t h, bool invert,
+                                           bool mirror_y, bool pgm) {
+  writeImagePart(bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert,
+                 mirror_y, pgm);
   refresh(x, y, w, h);
 }
 
-void GxEPD2_750c_GDEM075F52::drawImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
+void GxEPD2_750c_GDEM075F52::drawImage(const uint8_t *black,
+                                       const uint8_t *color, int16_t x,
+                                       int16_t y, int16_t w, int16_t h,
+                                       bool invert, bool mirror_y, bool pgm) {
   writeImage(black, color, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
 }
 
-void GxEPD2_750c_GDEM075F52::drawImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
-    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
-  writeImagePart(black, color, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
+void GxEPD2_750c_GDEM075F52::drawImagePart(
+    const uint8_t *black, const uint8_t *color, int16_t x_part, int16_t y_part,
+    int16_t w_bitmap, int16_t h_bitmap, int16_t x, int16_t y, int16_t w,
+    int16_t h, bool invert, bool mirror_y, bool pgm) {
+  writeImagePart(black, color, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h,
+                 invert, mirror_y, pgm);
   refresh(x, y, w, h);
 }
 
-void GxEPD2_750c_GDEM075F52::drawNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
-{
+void GxEPD2_750c_GDEM075F52::drawNative(const uint8_t *data1,
+                                        const uint8_t *data2, int16_t x,
+                                        int16_t y, int16_t w, int16_t h,
+                                        bool invert, bool mirror_y, bool pgm) {
   writeNative(data1, data2, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
 }
@@ -845,16 +893,11 @@ void GxEPD2_750c_GDEM075F52::refresh(int16_t x, int16_t y, int16_t w, int16_t h)
   _refresh(!fullscreen);
 }
 
-void GxEPD2_750c_GDEM075F52::powerOff()
-{
-  _PowerOff();
-}
+void GxEPD2_750c_GDEM075F52::powerOff() { _PowerOff(); }
 
-void GxEPD2_750c_GDEM075F52::hibernate()
-{
+void GxEPD2_750c_GDEM075F52::hibernate() {
   _PowerOff();
-  if (_rst >= 0)
-  {
+  if (_rst >= 0) {
     _writeCommand(0x07); // deep sleep
     _writeData(0xA5);    // control code
     _hibernating = true;
@@ -862,14 +905,11 @@ void GxEPD2_750c_GDEM075F52::hibernate()
   }
 }
 
-void GxEPD2_750c_GDEM075F52::setPaged()
-{
-  if (!hasPartialUpdate)
-  {
-    _paged = true;
+void GxEPD2_750c_GDEM075F52::setPaged() {
+  _paged = true;
+  if (!_init_display_done)
     _InitDisplay();
-    _writeCommand(0x10);
-  }
+  _writeCommand(0x10);
 }
 
 void GxEPD2_750c_GDEM075F52::_refresh(bool partial_update_mode)
@@ -910,10 +950,8 @@ void GxEPD2_750c_GDEM075F52::_PowerOn()
   _power_is_on = true;
 }
 
-void GxEPD2_750c_GDEM075F52::_PowerOff()
-{
-  if (_power_is_on)
-  {
+void GxEPD2_750c_GDEM075F52::_PowerOff() {
+  if (_power_is_on) {
     _writeCommand(0x02);
     _writeData(0x00);
     _waitWhileBusy("_PowerOff", power_off_time);
@@ -928,9 +966,9 @@ void GxEPD2_750c_GDEM075F52::_InitDisplay()
   if ((_rst >= 0) && (_hibernating || _initial_write))
   {
     digitalWrite(_rst, HIGH);
-    delay(20); // At least 20ms delay
+    delay(20);               // At least 20ms delay
     digitalWrite(_rst, LOW); // Module reset
-    delay(2);  // At least 40ms delay, 2ms for WS "clever" reset
+    delay(2);                // At least 40ms delay, 2ms for WS "clever" reset
     digitalWrite(_rst, HIGH);
     delay(2); // At least 50ms delay (32ms measured)
     _waitWhileBusy("_InitDisplay reset", power_on_time);
