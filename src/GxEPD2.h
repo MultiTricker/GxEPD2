@@ -119,6 +119,7 @@ class GxEPD2
       GDEH075Z90,  Waveshare_7_5_bwr_Z90 = GDEH075Z90,
       GDEY116Z91,
       GDEY1248Z51,
+      GDEM102Z91,
       GDEM133Z91,
       // 4-color
       GDEM0154F51H,

@@ -122,6 +122,9 @@
 #if __has_include("epd3c/GxEPD2_1248c.h")
 #include "epd3c/GxEPD2_1248c.h"
 #endif
+#if __has_include("gdem3c/GxEPD2_1020c_GDEM102Z91.h")
+#include "gdem3c/GxEPD2_1020c_GDEM102Z91.h"
+#endif
 #if __has_include("gdem3c/GxEPD2_1330c_GDEM133Z91.h")
 #include "gdem3c/GxEPD2_1330c_GDEM133Z91.h"
 #endif
