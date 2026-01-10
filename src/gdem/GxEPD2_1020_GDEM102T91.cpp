@@ -29,8 +29,16 @@ void GxEPD2_1020_GDEM102T91::clearScreen(uint8_t value)
 
 void GxEPD2_1020_GDEM102T91::writeScreenBuffer(uint8_t value)
 {
-  if (_initial_write) return clearScreen(value);
-  _writeScreenBuffer(0x24, value); // set current
+  if (_initial_write)
+  {
+    _writeScreenBuffer(0x26, value); // set previous
+    _writeScreenBuffer(0x24, value); // set current
+    _initial_write = false;
+  }
+  else
+  {
+    _writeScreenBuffer(0x24, value); // set current
+  }
 }
 
 void GxEPD2_1020_GDEM102T91::writeScreenBufferAgain(uint8_t value)
@@ -408,8 +416,8 @@ void GxEPD2_1020_GDEM102T91::_Update_Full()
 void GxEPD2_1020_GDEM102T91::_Update_Part()
 {
   _writeCommand(0x22);
-  _writeData(hasFastPartialUpdate ? 0xfc : 0xf4);
+  _writeData(0xFF);
   _writeCommand(0x20);
-  _waitWhileBusy("_Update_Part", hasFastPartialUpdate ? partial_refresh_time : full_refresh_time);
+  _waitWhileBusy("_Update_Part", partial_refresh_time);
   _power_is_on = true;
 }
