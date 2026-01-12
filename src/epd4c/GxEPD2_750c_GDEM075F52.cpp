@@ -907,8 +907,7 @@ void GxEPD2_750c_GDEM075F52::hibernate() {
 
 void GxEPD2_750c_GDEM075F52::setPaged() {
   _paged = true;
-  if (!_init_display_done)
-    _InitDisplay();
+  _InitDisplay();
   _writeCommand(0x10);
 }
 
