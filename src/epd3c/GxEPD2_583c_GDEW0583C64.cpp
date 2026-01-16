@@ -446,13 +446,13 @@ void GxEPD2_583c_GDEW0583C64::_InitDisplay()
   _writeData(0xCF);
   _writeData(0x08);
   _writeCommand(0x30);      // PLL setting
-  _writeData(0x3A);         // PLL: 0-15C:0x3C, 15+:0x3A
+  _writeData(0x3C);         // PLL: 0-15C:0x3C, 15+:0x3A
   _writeCommand(0x82);      // VCOM VOLTAGE SETTING
   _writeData(0x28);         // all temperature range
   _writeCommand(0x06);      // BOOSTER SOFT START
   _writeData(0xC7);
   _writeData(0xCC);
-  _writeData(0x15);         // corrected from datasheet
+  _writeData(0x28);         // higher value for better yellow contrast
   _writeCommand(0x50);      // VCOM AND DATA INTERVAL SETTING
   _writeData(0x77);
   _writeCommand(0x60);      // TCON SETTING
