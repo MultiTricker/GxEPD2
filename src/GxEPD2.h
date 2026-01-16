@@ -112,6 +112,7 @@ class GxEPD2
       GDEY0579Z93,
       GDEQ0583Z31,
       GDEW0583Z21, Waveshare_5_83_bwr = GDEW0583Z21,
+      GDEW0583C64, // 5.83" B/W/Yellow, IL0371
       GDEW0583Z83,
       GDEW075Z09,  Waveshare_7_5_bwr = GDEW075Z09,
       GDEW075Z08,  Waveshare_7_5_bwr_Z08 = GDEW075Z08,
