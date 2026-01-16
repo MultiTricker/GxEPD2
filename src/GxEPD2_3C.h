@@ -93,6 +93,9 @@
 #if __has_include("epd3c/GxEPD2_583c.h")
 #include "epd3c/GxEPD2_583c.h"
 #endif
+#if __has_include("epd3c/GxEPD2_583c_GDEW0583C64.h")
+#include "epd3c/GxEPD2_583c_GDEW0583C64.h"
+#endif
 #if __has_include("gdeq3c/GxEPD2_583c_GDEQ0583Z31.h")
 #include "gdeq3c/GxEPD2_583c_GDEQ0583Z31.h"
 #endif
