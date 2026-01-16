@@ -454,7 +454,7 @@ void GxEPD2_583c_GDEW0583C64::_InitDisplay()
   _writeData(0xCC);
   _writeData(0x28);         // higher value for better yellow contrast
   _writeCommand(0x50);      // VCOM AND DATA INTERVAL SETTING
-  _writeData(0x77);
+  _writeData(0x37);         // reduced ghosting
   _writeCommand(0x60);      // TCON SETTING
   _writeData(0x22);
   _writeCommand(0x65);      // FLASH CONTROL
