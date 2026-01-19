@@ -72,6 +72,9 @@
 #if __has_include("epd4c/GxEPD2_420c_GDEY0420F51.h")
 #include "epd4c/GxEPD2_420c_GDEY0420F51.h"
 #endif
+#if __has_include("epd4c/GxEPD2_420c_GDEM042F52.h")
+#include "epd4c/GxEPD2_420c_GDEM042F52.h"
+#endif
 #if __has_include("epd4c/GxEPD2_437c.h")
 #include "epd4c/GxEPD2_437c.h"
 #endif
@@ -81,11 +84,20 @@
 #if __has_include("epd4c/GxEPD2_750c_GDEM075F52.h")
 #include "epd4c/GxEPD2_750c_GDEM075F52.h"
 #endif
+#if __has_include("epd4c/GxEPD2_583c_GDEY0583F41.h")
+#include "epd4c/GxEPD2_583c_GDEY0583F41.h"
+#endif
 #if __has_include("epd4c/GxEPD2_750c_GDEM075F52.h")
 #include "epd4c/GxEPD2_750c_GDEM075F52.h"
 #endif
 #if __has_include("epd4c/GxEPD2_1160c_GDEY116F51.h")
 #include "epd4c/GxEPD2_1160c_GDEY116F51.h"
+#endif
+#if __has_include("epd4c/GxEPD2_1160c_GDEY116F91.h")
+#include "epd4c/GxEPD2_1160c_GDEY116F91.h"
+#endif
+#if __has_include("epd4c/GxEPD2_1020c_GDEM102F91.h")
+#include "epd4c/GxEPD2_1020c_GDEM102F91.h"
 #endif
 
 template<typename GxEPD2_Type, const uint16_t page_height>
