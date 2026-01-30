@@ -2,9 +2,10 @@
 // from Waveshare. Requires HW SPI and Adafruit_GFX. Caution: the e-paper panels
 // require 3.3V supply AND data lines!
 //
-// based on Demo Example from Good Display: https://www.good-display.com/companyfile/1519.html
-// Panel: GDEM075F52 : https://www.good-display.com/product/546.html
-// Controller: JD79665AA, no specs, see GDEM075F52 panel specs for command list subset
+// based on Demo Example from LaskaKit:
+// https://github.com/LaskaKit/Testcode_examples/tree/main/Displays/E-Paper/7-50/GDEM075F52_ESP32
+// Panel: GDEM075F52 : https://www.good-display.com/product/465.html
+// Controller: similar to HX8717, see panel specs for command list subset
 //
 // Author: Jean-Marc Zingg
 //
@@ -19,16 +20,6 @@ GxEPD2_750c_GDEM075F52::GxEPD2_750c_GDEM075F52(int16_t cs, int16_t dc,
     : GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel,
                  hasColor, hasPartialUpdate, hasFastPartialUpdate) {
   _paged = false;
-  _use_fast_update = useFastFullUpdate;
-}
-
-void GxEPD2_750c_GDEM075F52::selectFastFullUpdate(bool ff)
-{
-  if (ff != _use_fast_update)
-  {
-    _use_fast_update = ff;
-    _InitDisplay();
-  }
 }
 
 void GxEPD2_750c_GDEM075F52::clearScreen(uint8_t value) {
@@ -66,122 +57,69 @@ void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t bitmap[], int16_t x,
   // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
   // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
-  if (hasPartialUpdate)
-  {
+  if (!_paged) {
+    if (!_init_display_done)
+      _InitDisplay();
+    if (_initial_write)
+      writeScreenBuffer();
+  }
+  if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT))) {
+    // Serial.println("paged");
+    _startTransfer();
+    for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 8; i++) {
+      uint8_t data = bitmap[i];
+      for (int16_t k = 0; k < 2; k++) {
+        uint8_t data2 =
+            (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
+            (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
+        data <<= 4;
+        _transfer(data2);
+      }
+    }
+    _endTransfer();
+    if (y + h == HEIGHT) // last page
+    {
+      // Serial.println("paged ended");
+      _paged = false;
+    }
+  } else {
+    _paged = false;
     int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
-    x -= x % 8; // byte boundary
-    w = wb * 8; // byte boundary
-    int16_t x1 = x < 0 ? 0 : x; // limit
-    int16_t y1 = y < 0 ? 0 : y; // limit
-    int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
-    int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
-    int16_t dx = x1 - x;
-    int16_t dy = y1 - y;
-    w1 -= dx;
-    h1 -= dy;
-    if ((w1 <= 0) || (h1 <= 0)) return;
-    _setPartialRamArea(x1, y1, w1, h1);
+    x -= x % 8;               // byte boundary
+    w = wb * 8;               // byte boundary
+    if ((w <= 0) || (h <= 0))
+      return;
     _writeCommand(0x10);
     _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 8; j++)
-      {
+    for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+      for (int16_t j = 0; j < int16_t(WIDTH); j += 8) {
         uint8_t data = 0xFF;
-        // use wb, h of bitmap for index!
-        uint32_t idx = mirror_y ? j + dx / 8 + uint32_t((h - 1 - (i + dy))) * wb : j + dx / 8 + uint32_t(i + dy) * wb;
-        if (pgm)
-        {
+        if ((j >= x) && (j <= x + w) && (i >= y) && (i < y + h)) {
+          uint32_t idx = mirror_y
+                             ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb
+                             : (j - x) / 8 + uint32_t(i - y) * wb;
+          if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-          data = pgm_read_byte(&bitmap[idx]);
+            data = pgm_read_byte(&bitmap[idx]);
 #else
-          data = bitmap[idx];
+            data = bitmap[idx];
 #endif
+          } else {
+            data = bitmap[idx];
+          }
+          if (invert)
+            data = ~data;
         }
-        else
-        {
-          data = bitmap[idx];
-        }
-        if (invert) data = ~data;
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t data2 = (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
-                          (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
+        for (int16_t k = 0; k < 2; k++) {
+          uint8_t data2 =
+              (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
+              (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
           data <<= 4;
           _transfer(data2);
         }
       }
     }
     _endTransfer();
-  }
-  else
-  {
-    if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT)))
-    {
-      //Serial.println("paged");
-      _startTransfer();
-      for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 8; i++)
-      {
-        uint8_t data = bitmap[i];
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t data2 = (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
-                          (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
-          data <<= 4;
-          _transfer(data2);
-        }
-      }
-      _endTransfer();
-      if (y + h == HEIGHT) // last page
-      {
-        //Serial.println("paged ended");
-        _paged = false;
-      }
-    }
-    else
-    {
-      _paged = false;
-      int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
-      x -= x % 8; // byte boundary
-      w = wb * 8; // byte boundary
-      if ((w <= 0) || (h <= 0)) return;
-      _writeCommand(0x10);
-      _startTransfer();
-      for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-      {
-        for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
-        {
-          uint8_t data = 0xFF;
-          if ((j >= x) && (j <= x + w) && (i >= y) && (i < y + h))
-          {
-            uint32_t idx = mirror_y ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb : (j - x) / 8 + uint32_t(i - y) * wb;
-            if (pgm)
-            {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-              data = pgm_read_byte(&bitmap[idx]);
-#else
-              data = bitmap[idx];
-#endif
-            }
-            else
-            {
-              data = bitmap[idx];
-            }
-            if (invert) data = ~data;
-          }
-          for (int16_t k = 0; k < 2; k++)
-          {
-            uint8_t data2 = (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
-                            (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
-            data <<= 4;
-            _transfer(data2);
-          }
-        }
-      }
-      _endTransfer();
-    }
   }
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
@@ -198,60 +136,79 @@ void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t *black,
   // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
   // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
-  if (hasPartialUpdate)
-  {
+  if (!_paged) {
+    if (!_init_display_done)
+      _InitDisplay();
+    if (_initial_write)
+      writeScreenBuffer();
+  }
+  if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT))) {
+    // Serial.println("paged");
+    _startTransfer();
+    for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 8; i++) {
+      uint8_t black_data = black[i];
+      uint8_t color_data = color[i];
+      for (int16_t k = 0; k < 2; k++) {
+        uint8_t out_data = 0x00;
+        for (int16_t l = 0; l < 4; l++) {
+          out_data <<= 2;
+          if (!(color_data & 0x80))
+            out_data |= 0x02; // yellow
+          else
+            out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
+          black_data <<= 1;
+          color_data <<= 1;
+        }
+        _transfer(out_data);
+      }
+    }
+    _endTransfer();
+    if (y + h == HEIGHT) // last page
+    {
+      // Serial.println("paged ended");
+      _paged = false;
+    }
+  } else {
+    _paged = false;
     int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
-    x -= x % 8; // byte boundary
-    w = wb * 8; // byte boundary
-    int16_t x1 = x < 0 ? 0 : x; // limit
-    int16_t y1 = y < 0 ? 0 : y; // limit
-    int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
-    int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
-    int16_t dx = x1 - x;
-    int16_t dy = y1 - y;
-    w1 -= dx;
-    h1 -= dy;
-    if ((w1 <= 0) || (h1 <= 0)) return;
-    _setPartialRamArea(x1, y1, w1, h1);
+    x -= x % 8;               // byte boundary
+    w = wb * 8;               // byte boundary
+    if ((w <= 0) || (h <= 0))
+      return;
     _writeCommand(0x10);
     _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 8; j++)
-      {
+    for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+      for (int16_t j = 0; j < int16_t(WIDTH); j += 8) {
         uint8_t black_data = 0xFF, color_data = 0xFF;
-        // use wb, h of bitmap for index!
-        uint32_t idx = mirror_y ? j + dx / 8 + uint32_t((h - 1 - (i + dy))) * wb : j + dx / 8 + uint32_t(i + dy) * wb;
-        if (pgm)
-        {
+        if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h)) {
+          uint32_t idx = mirror_y
+                             ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb
+                             : (j - x) / 8 + uint32_t(i - y) * wb;
+          if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-          black_data = pgm_read_byte(&black[idx]);
-          color_data = pgm_read_byte(&color[idx]);
+            black_data = pgm_read_byte(&black[idx]);
+            color_data = pgm_read_byte(&color[idx]);
 #else
-          black_data = black[idx];
-          color_data = color[idx];
+            black_data = black[idx];
+            color_data = color[idx];
 #endif
+          } else {
+            black_data = black[idx];
+            color_data = color[idx];
+          }
+          if (invert) {
+            black_data = ~black_data;
+            color_data = ~color_data;
+          }
         }
-        else
-        {
-          black_data = black[idx];
-          color_data = color[idx];
-        }
-        if (invert)
-        {
-          black_data = ~black_data;
-          color_data = ~color_data;
-        }
-        for (int16_t k = 0; k < 2; k++)
-        {
+        for (int16_t k = 0; k < 2; k++) {
           uint8_t out_data = 0x00;
-          for (int16_t l = 0; l < 4; l++)
-          {
+          for (int16_t l = 0; l < 4; l++) {
             out_data <<= 2;
-            if (!(color_data & 0x80)) out_data |= 0x03; // red
-            else out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
+            if (!(color_data & 0x80))
+              out_data |= 0x02; // yellow
+            else
+              out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
             black_data <<= 1;
             color_data <<= 1;
           }
@@ -260,93 +217,6 @@ void GxEPD2_750c_GDEM075F52::writeImage(const uint8_t *black,
       }
     }
     _endTransfer();
-  }
-  else
-  {
-    if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT)))
-    {
-      //Serial.println("paged");
-      _startTransfer();
-      for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 8; i++)
-      {
-        uint8_t black_data = black[i];
-        uint8_t color_data = color[i];
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t out_data = 0x00;
-          for (int16_t l = 0; l < 4; l++)
-          {
-            out_data <<= 2;
-            if (!(color_data & 0x80)) out_data |= 0x03; // red
-            else out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
-            black_data <<= 1;
-            color_data <<= 1;
-          }
-          _transfer(out_data);
-        }
-      }
-      _endTransfer();
-      if (y + h == HEIGHT) // last page
-      {
-        //Serial.println("paged ended");
-        _paged = false;
-      }
-    }
-    else
-    {
-      _paged = false;
-      int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
-      x -= x % 8; // byte boundary
-      w = wb * 8; // byte boundary
-      if ((w <= 0) || (h <= 0)) return;
-      _writeCommand(0x10);
-      _startTransfer();
-      for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-      {
-        for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
-        {
-          uint8_t black_data = 0xFF, color_data = 0xFF;
-          if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h))
-          {
-            uint32_t idx = mirror_y ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb : (j - x) / 8 + uint32_t(i - y) * wb;
-            if (pgm)
-            {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-              black_data = pgm_read_byte(&black[idx]);
-              color_data = pgm_read_byte(&color[idx]);
-#else
-              black_data = black[idx];
-              color_data = color[idx];
-#endif
-            }
-            else
-            {
-              black_data = black[idx];
-              color_data = color[idx];
-            }
-            if (invert)
-            {
-              black_data = ~black_data;
-              color_data = ~color_data;
-            }
-          }
-          for (int16_t k = 0; k < 2; k++)
-          {
-            uint8_t out_data = 0x00;
-            for (int16_t l = 0; l < 4; l++)
-            {
-              out_data <<= 2;
-              if (!(color_data & 0x80)) out_data |= 0x03; // red
-              else out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
-              black_data <<= 1;
-              color_data <<= 1;
-            }
-            _transfer(out_data);
-          }
-        }
-      }
-      _endTransfer();
-    }
   }
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
@@ -389,81 +259,42 @@ void GxEPD2_750c_GDEM075F52::writeImagePart(const uint8_t bitmap[],
   int16_t dy = y1 - y;
   w1 -= dx;
   h1 -= dy;
-  if ((w1 <= 0) || (h1 <= 0)) return;
-  if (hasPartialUpdate)
-  {
-    _setPartialRamArea(x1, y1, w1, h1);
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 8; j++)
-      {
-        uint8_t data;
+  if ((w1 <= 0) || (h1 <= 0))
+    return;
+  _writeCommand(0x10);
+  _startTransfer();
+  for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+    for (int16_t j = 0; j < int16_t(WIDTH); j += 8) {
+      uint8_t data = 0xFF;
+      if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h)) {
         // use wb_bitmap, h_bitmap of bitmap for index!
-        uint32_t idx = mirror_y ? x_part / 8 + j + dx / 8 + uint32_t((h_bitmap - 1 - (y_part + i + dy))) * wb_bitmap : x_part / 8 + j + dx / 8 + uint32_t(y_part + i + dy) * wb_bitmap;
-        if (pgm)
-        {
+        uint32_t idx =
+            mirror_y
+                ? (x_part + j - x1) / 8 +
+                      uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap
+                : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
+        if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
           data = pgm_read_byte(&bitmap[idx]);
 #else
           data = bitmap[idx];
 #endif
-        }
-        else
-        {
+        } else {
           data = bitmap[idx];
         }
-        if (invert) data = ~data;
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t data2 = (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
-                          (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
-          data <<= 4;
-          _transfer(data2);
-        }
+        if (invert)
+          data = ~data;
+      }
+      for (int16_t k = 0; k < 2; k++) {
+        uint8_t data2 =
+            (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
+            (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
+        data <<= 4;
+        _transfer(data2);
       }
     }
-    _endTransfer();
   }
-  else
-  {
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-    {
-      for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
-      {
-        uint8_t data = 0xFF;
-        if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h))
-        {
-          // use wb_bitmap, h_bitmap of bitmap for index!
-          uint32_t idx = mirror_y ? (x_part + j - x1) / 8 + uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
-          if (pgm)
-          {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&bitmap[idx]);
-#else
-            data = bitmap[idx];
-#endif
-          }
-          else
-          {
-            data = bitmap[idx];
-          }
-          if (invert) data = ~data;
-        }
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t data2 = (data & 0x80 ? 0x40 : 0x00) | (data & 0x40 ? 0x10 : 0x00) |
-                          (data & 0x20 ? 0x04 : 0x00) | (data & 0x10 ? 0x01 : 0x00);
-          data <<= 4;
-          _transfer(data2);
-        }
-      }
-    }
-    _endTransfer();
-  }
+  _endTransfer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
@@ -508,21 +339,21 @@ void GxEPD2_750c_GDEM075F52::writeImagePart(
   int16_t dy = y1 - y;
   w1 -= dx;
   h1 -= dy;
-  if ((w1 <= 0) || (h1 <= 0)) return;
-  if (hasPartialUpdate)
-  {
-    _setPartialRamArea(x1, y1, w1, h1);
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 8; j++)
-      {
-        uint8_t black_data = 0xFF, color_data = 0xFF;
+  if ((w1 <= 0) || (h1 <= 0))
+    return;
+  _writeCommand(0x10);
+  _startTransfer();
+  for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+    for (int16_t j = 0; j < int16_t(WIDTH); j += 8) {
+      uint8_t black_data = 0xFF, color_data = 0xFF;
+      if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h)) {
         // use wb_bitmap, h_bitmap of bitmap for index!
-        uint32_t idx = mirror_y ? x_part / 8 + j + dx / 8 + uint32_t((h_bitmap - 1 - (y_part + i + dy))) * wb_bitmap : x_part / 8 + j + dx / 8 + uint32_t(y_part + i + dy) * wb_bitmap;
-        if (pgm)
-        {
+        uint32_t idx =
+            mirror_y
+                ? (x_part + j - x1) / 8 +
+                      uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap
+                : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
+        if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
           black_data = pgm_read_byte(&black[idx]);
           color_data = pgm_read_byte(&color[idx]);
@@ -530,80 +361,31 @@ void GxEPD2_750c_GDEM075F52::writeImagePart(
           black_data = black[idx];
           color_data = color[idx];
 #endif
-        }
-        else
-        {
+        } else {
           black_data = black[idx];
           color_data = color[idx];
         }
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t out_data = 0x00;
-          for (int16_t l = 0; l < 4; l++)
-          {
-            out_data <<= 2;
-            if (!(color_data & 0x80)) out_data |= 0x03; // red
-            else out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
-            black_data <<= 1;
-            color_data <<= 1;
-          }
-          _transfer(out_data);
+        if (invert) {
+          black_data = ~black_data;
+          color_data = ~color_data;
         }
       }
-    }
-    _endTransfer();
-  }
-  else
-  {
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-    {
-      for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
-      {
-        uint8_t black_data = 0xFF, color_data = 0xFF;
-        if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h))
-        {
-          // use wb_bitmap, h_bitmap of bitmap for index!
-          uint32_t idx = mirror_y ? (x_part + j - x1) / 8 + uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
-          if (pgm)
-          {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            black_data = pgm_read_byte(&black[idx]);
-            color_data = pgm_read_byte(&color[idx]);
-#else
-            black_data = black[idx];
-            color_data = color[idx];
-#endif
-          }
+      for (int16_t k = 0; k < 2; k++) {
+        uint8_t out_data = 0x00;
+        for (int16_t l = 0; l < 4; l++) {
+          out_data <<= 2;
+          if (!(color_data & 0x80))
+            out_data |= 0x02; // yellow
           else
-          {
-            black_data = black[idx];
-            color_data = color[idx];
-          }
-          if (invert)
-          {
-            black_data = ~black_data;
-            color_data = ~color_data;
-          }
+            out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
+          black_data <<= 1;
+          color_data <<= 1;
         }
-        for (int16_t k = 0; k < 2; k++)
-        {
-          uint8_t out_data = 0x00;
-          for (int16_t l = 0; l < 4; l++)
-          {
-            out_data <<= 2;
-            if (!(color_data & 0x80)) out_data |= 0x03; // red
-            else out_data |= black_data & 0x80 ? 0x01 : 0x00; // white or black
-            black_data <<= 1;
-            color_data <<= 1;
-          }
-          _transfer(out_data);
-        }
+        _transfer(out_data);
       }
     }
-    _endTransfer();
   }
+  _endTransfer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
@@ -617,110 +399,60 @@ void GxEPD2_750c_GDEM075F52::writeNative(const uint8_t *data1,
   // Serial.print(y); Serial.print(", "); Serial.print(w); Serial.print(", ");
   // Serial.print(h); Serial.println(")");
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
-  if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
-  if (hasPartialUpdate)
-  {
+  if (!_paged) {
+    if (!_init_display_done)
+      _InitDisplay();
+    if (_initial_write)
+      writeScreenBuffer();
+  }
+  if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT))) {
+    // Serial.println("paged");
+    _startTransfer();
+    for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 4; i++) {
+      uint8_t data = data1[i];
+      _transfer(data);
+    }
+    _endTransfer();
+    if (y + h == HEIGHT) // last page
+    {
+      // Serial.println("paged ended");
+      _paged = false;
+    }
+  } else {
+    // Serial.println("not paged");
+    _paged = false;
     int16_t wb = (w + 3) / 4; // width bytes, bitmaps are padded
-    x -= x % 4; // byte boundary
-    w = wb * 4; // byte boundary
-    int16_t x1 = x < 0 ? 0 : x; // limit
-    int16_t y1 = y < 0 ? 0 : y; // limit
-    int16_t w1 = x + w < int16_t(WIDTH) ? w : int16_t(WIDTH) - x; // limit
-    int16_t h1 = y + h < int16_t(HEIGHT) ? h : int16_t(HEIGHT) - y; // limit
-    int16_t dx = x1 - x;
-    int16_t dy = y1 - y;
-    w1 -= dx;
-    h1 -= dy;
-    if ((w1 <= 0) || (h1 <= 0)) return;
-    _setPartialRamArea(x1, y1, w1, h1);
+    x -= x % 4;               // byte boundary
+    w = wb * 4;               // byte boundary
+    if ((w <= 0) || (h <= 0))
+      return;
     _writeCommand(0x10);
     _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 4; j++)
-      {
-        uint8_t data;
-        // use wb, h of bitmap for index!
-        uint32_t idx = mirror_y ? j + dx / 4 + uint32_t((h - 1 - (i + dy))) * wb : j + dx / 4 + uint32_t(i + dy) * wb;
-        if (pgm)
-        {
+    for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+      for (int16_t j = 0; j < int16_t(WIDTH); j += 4) {
+        uint8_t data = 0x55;
+        if (data1) {
+          if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h)) {
+            uint32_t idx = mirror_y
+                               ? (j - x) / 4 + uint32_t((h - 1 - (i - y))) * wb
+                               : (j - x) / 4 + uint32_t(i - y) * wb;
+            if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-          data = pgm_read_byte(&data1[idx]);
+              data = pgm_read_byte(&data1[idx]);
 #else
-          data = data1[idx];
+              data = data1[idx];
 #endif
+            } else {
+              data = data1[idx];
+            }
+            if (invert)
+              data = ~data;
+          }
         }
-        else
-        {
-          data = data1[idx];
-        }
-        //if (invert) data = ~data;
-        if (invert) data = _invert(data);
         _transfer(data);
       }
     }
     _endTransfer();
-  }
-  else
-  {
-    if (_paged && (x == 0) && (w == int16_t(WIDTH)) && (h < int16_t(HEIGHT)))
-    {
-      //Serial.println("paged");
-      _startTransfer();
-      for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(h) / 4; i++)
-      {
-        uint8_t data = data1[i];
-        _transfer(data);
-      }
-      _endTransfer();
-      if (y + h == HEIGHT) // last page
-      {
-        //Serial.println("paged ended");
-        _paged = false;
-      }
-    }
-    else
-    {
-      //Serial.println("not paged");
-      _paged = false;
-      int16_t wb = (w + 3) / 4; // width bytes, bitmaps are padded
-      x -= x % 4; // byte boundary
-      w = wb * 4; // byte boundary
-      if ((w <= 0) || (h <= 0)) return;
-      _writeCommand(0x10);
-      _startTransfer();
-      for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-      {
-        for (int16_t j = 0; j < int16_t(WIDTH); j += 4)
-        {
-          uint8_t data = 0x55;
-          if (data1)
-          {
-            if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h))
-            {
-              uint32_t idx = mirror_y ? (j - x) / 4 + uint32_t((h - 1 - (i - y))) * wb : (j - x) / 4 + uint32_t(i - y) * wb;
-              if (pgm)
-              {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-                data = pgm_read_byte(&data1[idx]);
-#else
-                data = data1[idx];
-#endif
-              }
-              else
-              {
-                data = data1[idx];
-              }
-              //if (invert) data = ~data;
-              if (invert) data = _invert(data);
-            }
-          }
-          _transfer(data);
-        }
-      }
-      _endTransfer();
-    }
   }
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
@@ -757,71 +489,36 @@ void GxEPD2_750c_GDEM075F52::writeNativePart(
   int16_t dy = y1 - y;
   w1 -= dx;
   h1 -= dy;
-  if ((w1 <= 0) || (h1 <= 0)) return;
-  if (hasPartialUpdate)
-  {
-    _setPartialRamArea(x1, y1, w1, h1);
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < h1; i++)
-    {
-      for (int16_t j = 0; j < w1 / 4; j++)
-      {
-        uint8_t data;
+  if ((w1 <= 0) || (h1 <= 0))
+    return;
+  _writeCommand(0x10);
+  _startTransfer();
+  for (int16_t i = 0; i < int16_t(HEIGHT); i++) {
+    for (int16_t j = 0; j < int16_t(WIDTH); j += 4) {
+      uint8_t data = 0x55;
+      if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h)) {
         // use wb_bitmap, h_bitmap of bitmap for index!
-        uint32_t idx = mirror_y ? x_part / 4 + j + dx / 4 + uint32_t((h_bitmap - 1 - (y_part + i + dy))) * wb_bitmap : x_part / 4 + j + dx / 4 + uint32_t(y_part + i + dy) * wb_bitmap;
-        if (pgm)
-        {
+        uint32_t idx =
+            mirror_y
+                ? (x_part + j - x1) / 4 +
+                      uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap
+                : (x_part + j - x1) / 4 + uint32_t(y_part + i - y1) * wb_bitmap;
+        if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
           data = pgm_read_byte(&data1[idx]);
 #else
           data = data1[idx];
 #endif
-        }
-        else
-        {
+        } else {
           data = data1[idx];
         }
-        //if (invert) data = ~data;
-        if (invert) data = _invert(data);
-        _transfer(data);
+        if (invert)
+          data = ~data;
       }
+      _transfer(data);
     }
-    _endTransfer();
   }
-  else
-  {
-    _writeCommand(0x10);
-    _startTransfer();
-    for (int16_t i = 0; i < int16_t(HEIGHT); i++)
-    {
-      for (int16_t j = 0; j < int16_t(WIDTH); j += 4)
-      {
-        uint8_t data = 0x55;
-        if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h))
-        {
-          // use wb_bitmap, h_bitmap of bitmap for index!
-          uint32_t idx = mirror_y ? (x_part + j - x1) / 4 + uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap : (x_part + j - x1) / 4 + uint32_t(y_part + i - y1) * wb_bitmap;
-          if (pgm)
-          {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&data1[idx]);
-#else
-            data = data1[idx];
-#endif
-          }
-          else
-          {
-            data = data1[idx];
-          }
-          //if (invert) data = ~data;
-          if (invert) data = _invert(data);
-        }
-        _transfer(data);
-      }
-    }
-    _endTransfer();
-  }
+  _endTransfer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
@@ -868,29 +565,13 @@ void GxEPD2_750c_GDEM075F52::drawNative(const uint8_t *data1,
   refresh(x, y, w, h);
 }
 
-void GxEPD2_750c_GDEM075F52::refresh(bool partial_update_mode)
-{
-  if (hasPartialUpdate) _setPartialRamArea(0, 0, WIDTH, HEIGHT);
+void GxEPD2_750c_GDEM075F52::refresh(bool partial_update_mode) {
   _refresh(partial_update_mode);
 }
 
-void GxEPD2_750c_GDEM075F52::refresh(int16_t x, int16_t y, int16_t w, int16_t h)
-{
-  // intersection with screen
-  int16_t w1 = x < 0 ? w + x : w; // reduce
-  int16_t h1 = y < 0 ? h + y : h; // reduce
-  int16_t x1 = x < 0 ? 0 : x; // limit
-  int16_t y1 = y < 0 ? 0 : y; // limit
-  w1 = x1 + w1 < int16_t(WIDTH) ? w1 : int16_t(WIDTH) - x1; // limit
-  h1 = y1 + h1 < int16_t(HEIGHT) ? h1 : int16_t(HEIGHT) - y1; // limit
-  if ((w1 <= 0) || (h1 <= 0)) return;
-  // make x1, w1 multiple of 4
-  w1 += x1 % 4;
-  if (w1 % 4 > 0) w1 += 4 - w1 % 4;
-  x1 -= x1 % 4;
-  bool fullscreen = ((x1 == 0) && (y1 == 0) && (w1 == WIDTH) && (h1 == HEIGHT));
-  if (hasPartialUpdate) _setPartialRamArea(x1, y1, w1, h1, !fullscreen);
-  _refresh(!fullscreen);
+void GxEPD2_750c_GDEM075F52::refresh(int16_t x, int16_t y, int16_t w,
+                                     int16_t h) {
+  _refresh(false);
 }
 
 void GxEPD2_750c_GDEM075F52::powerOff() { _PowerOff(); }
@@ -911,38 +592,16 @@ void GxEPD2_750c_GDEM075F52::setPaged() {
   _writeCommand(0x10);
 }
 
-void GxEPD2_750c_GDEM075F52::_refresh(bool partial_update_mode)
-{
-  _writeCommand(0x50); // VCOM and Data Interval Setting
-  _writeData(partial_update_mode ? 0x97 : 0x37); // floating or white
+void GxEPD2_750c_GDEM075F52::_refresh(bool partial_update_mode) {
   _writeCommand(0x12); // Display Refresh
   _writeData(0x00);
   delay(1);
   _waitWhileBusy("_refresh", full_refresh_time);
-  //_power_is_on = false; // not needed
   _init_display_done = false; // needed
 }
 
-void GxEPD2_750c_GDEM075F52::_setPartialRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool partial_mode)
-{
-  //Serial.print("_setPartialRamArea("); Serial.print(x); Serial.print(", "); Serial.print(y); Serial.print(", ");
-  //Serial.print(w); Serial.print(", "); Serial.print(h); Serial.println(")");
-  _writeCommand(0x83);
-  _writeData(x / 256);
-  _writeData(x % 256);
-  _writeData((x + w - 1) / 256);
-  _writeData((x + w - 1) % 256);
-  _writeData(y / 256);
-  _writeData(y % 256);
-  _writeData((y + h - 1) / 256);
-  _writeData((y + h - 1) % 256);
-  _writeData(partial_mode ? 0x01 : 0x00);
-}
-
-void GxEPD2_750c_GDEM075F52::_PowerOn()
-{
-  if (!_power_is_on)
-  {
+void GxEPD2_750c_GDEM075F52::_PowerOn() {
+  if (!_power_is_on) {
     _writeCommand(0x04);
     _waitWhileBusy("_PowerOn", power_on_time);
   }
@@ -958,12 +617,10 @@ void GxEPD2_750c_GDEM075F52::_PowerOff() {
   _power_is_on = false;
 }
 
-void GxEPD2_750c_GDEM075F52::_InitDisplay()
-{
-  //Serial.println("_InitDisplay");
-  // initcode from Good Dispay demo for GDEY029F51H
-  if ((_rst >= 0) && (_hibernating || _initial_write))
-  {
+void GxEPD2_750c_GDEM075F52::_InitDisplay() {
+  // Serial.println("_InitDisplay");
+  //  initcode from LaskaKit example for GDEM075F52
+  if ((_rst >= 0) && (_hibernating || _initial_write)) {
     digitalWrite(_rst, HIGH);
     delay(20);               // At least 20ms delay
     digitalWrite(_rst, LOW); // Module reset
@@ -974,27 +631,27 @@ void GxEPD2_750c_GDEM075F52::_InitDisplay()
     _hibernating = false;
     _power_is_on = false;
   }
-  _writeCommand(0x00); // PSR
-  _writeData(0x0F);    // default res, scan up, shift left, booster on, no effect (no RST)
-  _writeData(0x29);
+  _writeCommand(0x00); // PSR Panel Setting Register
+  _writeData(0x0F);    // default res, scan up, shift left, booster on
+  _writeData(0x29);    // LUT from OTP
   _writeCommand(0x06); // BTST Booster Soft Start
   _writeData(0x0F);
   _writeData(0x8B);
   _writeData(0x93);
-  _writeData(0xa1);
+  _writeData(0xA1);
   _writeCommand(0x41); // TSE
   _writeData(0x00);
-  _writeCommand(0x50); // CDI
-  _writeData(0x37);
-  _writeCommand(0x60); // ?
+  _writeCommand(0x50); // CDI VCOM and Data Interval Setting
+  _writeData(0x37);    // (VBD 1, DDX 1) white border, 10hsync
+  _writeCommand(0x60); // TCON
   _writeData(0x02);
   _writeData(0x02);
-  _writeCommand(0x61);      // TRES
+  _writeCommand(0x61);      // TRES Resolution Setting
   _writeData(WIDTH / 256);  // Source_BITS_H
   _writeData(WIDTH % 256);  // Source_BITS_L
   _writeData(HEIGHT / 256); // Gate_BITS_H
   _writeData(HEIGHT % 256); // Gate_BITS_L
-  _writeCommand(0x62); // ?
+  _writeCommand(0x62);      // Additional setting
   _writeData(0x98);
   _writeData(0x98);
   _writeData(0x98);
@@ -1003,48 +660,19 @@ void GxEPD2_750c_GDEM075F52::_InitDisplay()
   _writeData(0xB2);
   _writeData(0x98);
   _writeData(0x7E);
-  _writeCommand(0x65); // GSST
+  _writeCommand(0x65); // Flash control
   _writeData(0x00);
   _writeData(0x00);
   _writeData(0x00);
   _writeData(0x00);
-  _writeCommand(0xE7); //0xE7
+  _writeCommand(0xE7); // Unknown command
   _writeData(0x1C);
-  _writeCommand(0xE3); //0xE3
+  _writeCommand(0xE3); // PWS Power Saving
   _writeData(0x00);
-  _writeCommand(0xE9);
+  _writeCommand(0xE9); // Unknown command
   _writeData(0x01);
-  _writeCommand(0x30); // PLL
-  _writeData(0x08);    // dynamic frame rate enable
-  if (_use_fast_update)
-  {
-    _writeCommand(0xE0);
-    _writeData(0x02);
-    _writeCommand(0xE6);
-    _writeData(0x5A);
-    _writeCommand(0xA5);
-    _writeData(0x00);
-    _waitWhileBusy("_InitDisplay (0xA5)", power_on_time);
-  }
+  _writeCommand(0x30); // PLL Frame rate
+  _writeData(0x08);
   _PowerOn();
   _init_display_done = true;
-}
-
-uint8_t GxEPD2_750c_GDEM075F52::_invert(uint8_t data)
-{
-  uint8_t result = 0x00;
-  for (int i = 0; i < 4; i++)
-  {
-    switch (data & 0x03)
-    {
-      case 0x00 : result |= 0x01 << 6; break;
-      case 0x01 : result |= 0x02 << 6; break;
-      case 0x02 : result |= 0x03 << 6; break;
-      case 0x03 : result |= 0x00 << 6; break;
-    }
-    if (i == 3) break;
-    data >>= 2;
-    result >>= 2;
-  }
-  return result;
 }
