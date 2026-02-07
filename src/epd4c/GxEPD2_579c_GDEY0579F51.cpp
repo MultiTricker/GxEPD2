@@ -798,7 +798,8 @@ void GxEPD2_579c_GDEY0579F51::setPaged()
   {
     _paged = true;
     _InitDisplay();
-  _writeCommand(0x10);
+    _writeCommand(0x10);
+  }
 }
 
 void GxEPD2_579c_GDEY0579F51::_refresh(bool partial_update_mode)
