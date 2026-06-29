@@ -14,7 +14,7 @@
 #include "GxEPD2_074_E2741CS0B2.h"
 
 GxEPD2_074_E2741CS0B2::GxEPD2_074_E2741CS0B2(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
-  GxEPD2_EPD(cs, dc, rst, busy, HIGH, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
+  GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
 {
 }
 
@@ -34,22 +34,22 @@ void GxEPD2_074_E2741CS0B2::writeScreenBuffer(uint8_t value)
   _sendIndexData(0x90, data2, 4); // DRFW
   uint8_t data3[] = {0x3b, 0x00, 0x14};
   _sendIndexData(0x12, data3, 3); // RAM_RW
-  // Send black frame (frame1) - 0x00 for black, 0xFF for white
+  // Send black frame (frame1) - hardware: bit=1 for black, bit=0 for white (inverted from GxEPD2)
   _writeCommand(0x10);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(value);
+    _transfer(~value);
   }
   _endTransfer();
   // Send RAM_RW again for second frame (dummy for B/W display)
   _sendIndexData(0x12, data3, 3);
-  // Send dummy frame2 (all white/no-color)
+  // Send dummy frame2 (all no-color: bit=0 means no red)
   _writeCommand(0x11);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(0xFF); // no color
+    _transfer(0x00); // no color
   }
   _endTransfer();
   _initial_write = false;
@@ -99,7 +99,7 @@ void GxEPD2_074_E2741CS0B2::writeImage(const uint8_t bitmap[], int16_t x, int16_
         }
         if (invert) data = ~data;
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -107,12 +107,12 @@ void GxEPD2_074_E2741CS0B2::writeImage(const uint8_t bitmap[], int16_t x, int16_
   // Send RAM_RW again for second frame
   _sendIndexData(0x12, data3, 3);
   
-  // Send dummy frame2 (no color)
+  // Send dummy frame2 (no color: bit=0 means no red)
   _writeCommand(0x11);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(0xFF);
+    _transfer(0x00);
   }
   _endTransfer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
@@ -187,7 +187,7 @@ void GxEPD2_074_E2741CS0B2::writeImagePart(const uint8_t bitmap[], int16_t x_par
         }
         if (invert) data = ~data;
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -195,12 +195,12 @@ void GxEPD2_074_E2741CS0B2::writeImagePart(const uint8_t bitmap[], int16_t x_par
   // Send RAM_RW again
   _sendIndexData(0x12, data3, 3);
   
-  // Send dummy frame2 (no color)
+  // Send dummy frame2 (no color: bit=0 means no red)
   _writeCommand(0x11);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(0xFF);
+    _transfer(0x00);
   }
   _endTransfer();
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
@@ -327,19 +327,16 @@ void GxEPD2_074_E2741CS0B2::_PowerOff()
 
 void GxEPD2_074_E2741CS0B2::_InitDisplay()
 {
-  if (_hibernating || _initial_write)
+  if (_rst >= 0)
   {
-    if (_rst >= 0)
-    {
-      digitalWrite(_rst, HIGH);
-      delay(20);
-      digitalWrite(_rst, LOW);
-      delay(200);
-      digitalWrite(_rst, HIGH);
-      delay(50);
-    }
-    _hibernating = false;
+    digitalWrite(_rst, HIGH);
+    delay(20);
+    digitalWrite(_rst, LOW);
+    delay(200);
+    digitalWrite(_rst, HIGH);
+    delay(50);
   }
+  _hibernating = false;
   _power_is_on = true;
   _init_display_done = true;
 }
@@ -467,7 +464,7 @@ void GxEPD2_074_E2741CS0B2::_dcDcSoftStart()
 
 void GxEPD2_074_E2741CS0B2::_displayRefreshAndPowerDown()
 {
-  // Wait for BUSY pin to go high
+  // Wait for BUSY pin to go high (ready after DCDC soft-start)
   _waitWhileBusy("_displayRefreshAndPowerDown wait1", power_on_time);
   
   // Send display refresh command
@@ -488,11 +485,6 @@ void GxEPD2_074_E2741CS0B2::_displayRefreshAndPowerDown()
   delay(200);
   
   _waitWhileBusy("_displayRefreshAndPowerDown powerdown", power_off_time);
-  
-  // Set pins to low power state
-  if (_dc >= 0) digitalWrite(_dc, LOW);
-  if (_cs >= 0) digitalWrite(_cs, HIGH);
-  if (_rst >= 0) digitalWrite(_rst, LOW);
   
   _power_is_on = false;
   _init_display_done = false;

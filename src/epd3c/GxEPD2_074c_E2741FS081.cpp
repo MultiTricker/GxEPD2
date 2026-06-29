@@ -14,7 +14,7 @@
 #include "GxEPD2_074c_E2741FS081.h"
 
 GxEPD2_074c_E2741FS081::GxEPD2_074c_E2741FS081(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
-  GxEPD2_EPD(cs, dc, rst, busy, HIGH, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
+  GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
 {
   _paged = false;
 }
@@ -45,22 +45,22 @@ void GxEPD2_074c_E2741FS081::writeScreenBuffer(uint8_t black_value, uint8_t colo
   _sendIndexData(0x90, data2, 4); // DRFW
   uint8_t data3[] = {0x3b, 0x00, 0x14};
   _sendIndexData(0x12, data3, 3); // RAM_RW
-  // Send black frame (frame1) - 0x00 for black, 0xFF for white
+  // Send black frame (frame1) - hardware: bit=1 for black, bit=0 for white (inverted from GxEPD2)
   _writeCommand(0x10);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(black_value);
+    _transfer(~black_value);
   }
   _endTransfer();
   // Send RAM_RW again for second frame
   _sendIndexData(0x12, data3, 3);
-  // Send color frame (frame2) - 0x00 for red, 0xFF for no-red
+  // Send color frame (frame2) - hardware: bit=1 for red, bit=0 for no-red (inverted from GxEPD2)
   _writeCommand(0x11);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
   {
-    _transfer(color_value);
+    _transfer(~color_value);
   }
   _endTransfer();
   _initial_write = false;
@@ -119,7 +119,7 @@ void GxEPD2_074c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
           if (invert) data = ~data;
         }
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -134,7 +134,7 @@ void GxEPD2_074c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
   {
     for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
     {
-      uint8_t data = 0xFF; // no red
+      uint8_t data = 0xFF; // no red in GxEPD2 convention
       if (color)
       {
         if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h))
@@ -155,7 +155,7 @@ void GxEPD2_074c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
           if (invert) data = ~data;
         }
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is red on this display)
     }
   }
   _endTransfer();
@@ -232,7 +232,7 @@ void GxEPD2_074c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
           if (invert) data = ~data;
         }
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -268,7 +268,7 @@ void GxEPD2_074c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
           if (invert) data = ~data;
         }
       }
-      _transfer(data);
+      _transfer(~data); // invert for hardware (bit=1 is red on this display)
     }
   }
   _endTransfer();
@@ -392,19 +392,16 @@ void GxEPD2_074c_E2741FS081::_PowerOff()
 
 void GxEPD2_074c_E2741FS081::_InitDisplay()
 {
-  if (_hibernating || _initial_write)
+  if (_rst >= 0)
   {
-    if (_rst >= 0)
-    {
-      digitalWrite(_rst, HIGH);
-      delay(20);
-      digitalWrite(_rst, LOW);
-      delay(200);
-      digitalWrite(_rst, HIGH);
-      delay(50);
-    }
-    _hibernating = false;
+    digitalWrite(_rst, HIGH);
+    delay(20);
+    digitalWrite(_rst, LOW);
+    delay(200);
+    digitalWrite(_rst, HIGH);
+    delay(50);
   }
+  _hibernating = false;
   _power_is_on = true;
   _init_display_done = true;
 }
@@ -553,11 +550,6 @@ void GxEPD2_074c_E2741FS081::_displayRefreshAndPowerDown()
   delay(200);
   
   _waitWhileBusy("_displayRefreshAndPowerDown powerdown", power_off_time);
-  
-  // Set pins to low power state
-  if (_dc >= 0) digitalWrite(_dc, LOW);
-  if (_cs >= 0) digitalWrite(_cs, HIGH);
-  if (_rst >= 0) digitalWrite(_rst, LOW);
   
   _power_is_on = false;
   _init_display_done = false;
