@@ -12,12 +12,12 @@
 //
 // Library: https://github.com/ZinggJM/GxEPD2
 
-#ifndef _GxEPD2_074_E2741CS0B2_H_
-#define _GxEPD2_074_E2741CS0B2_H_
+#ifndef _GxEPD2_740_E2741CS0B2_H_
+#define _GxEPD2_740_E2741CS0B2_H_
 
 #include "../GxEPD2_EPD.h"
 
-class GxEPD2_074_E2741CS0B2 : public GxEPD2_EPD {
+class GxEPD2_740_E2741CS0B2 : public GxEPD2_EPD {
 public:
   // attributes
   static const uint16_t WIDTH = 800;
@@ -36,7 +36,7 @@ public:
   static const uint16_t partial_refresh_time =
       25000; // ms, same as full refresh
   // constructor
-  GxEPD2_074_E2741CS0B2(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
+  GxEPD2_740_E2741CS0B2(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
   // methods (virtual)
   //  Support for Bitmaps (Sprites) to Controller Buffer and to Screen
   void
