@@ -75,8 +75,8 @@ void GxEPD2_074_E2741CS0B2::writeImage(const uint8_t bitmap[], int16_t x, int16_
   _sendIndexData(0x12, data3, 3); // RAM_RW
   
   // Send black frame (frame1)
-  // Rotate: logical 800x480 -> physical 480x800
-  // physical_row (py) = logical_x (lx), physical_col (px) = HEIGHT-1-logical_y (ly)
+  // Rotate: logical 800x480 -> physical 480x800 (with 180° rotation)
+  // lx = (WIDTH-1) - py, ly = px + bit
   _writeCommand(0x10);
   _startTransfer();
   for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
@@ -84,7 +84,7 @@ void GxEPD2_074_E2741CS0B2::writeImage(const uint8_t bitmap[], int16_t x, int16_
     for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
       uint8_t out = 0xFF; // default white
-      int16_t lx = py; // logical x = physical row
+      int16_t lx = (int16_t(WIDTH) - 1) - py; // logical x = (799 - physical row)
       if (lx >= x && lx < x + w)
       {
         int16_t bx = lx - x; // bitmap x offset
@@ -93,7 +93,7 @@ void GxEPD2_074_E2741CS0B2::writeImage(const uint8_t bitmap[], int16_t x, int16_
         out = 0;
         for (int16_t bit = 0; bit < 8; bit++)
         {
-          int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit); // logical y from physical col
+          int16_t ly = px + bit; // logical y from physical col
           if (ly >= y && ly < y + h)
           {
             int16_t by = mirror_y ? (h - 1 - (ly - y)) : (ly - y);
@@ -184,7 +184,7 @@ void GxEPD2_074_E2741CS0B2::writeImagePart(const uint8_t bitmap[], int16_t x_par
   _sendIndexData(0x12, data3, 3); // RAM_RW
   
   // Send black frame
-  // Rotate: logical 800x480 -> physical 480x800
+  // Rotate: logical 800x480 -> physical 480x800 (with 180° rotation)
   _writeCommand(0x10);
   _startTransfer();
   for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
@@ -192,10 +192,10 @@ void GxEPD2_074_E2741CS0B2::writeImagePart(const uint8_t bitmap[], int16_t x_par
     for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
       uint8_t out = 0xFF; // default white
-      int16_t lx = py; // logical x = physical row
+      int16_t lx = (int16_t(WIDTH) - 1) - py; // logical x = (799 - physical row)
       for (int16_t bit = 0; bit < 8; bit++)
       {
-        int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit); // logical y from physical col
+        int16_t ly = px + bit; // logical y from physical col
         if (lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
         {
           int16_t bx = x_part + lx - x1; // bitmap x
