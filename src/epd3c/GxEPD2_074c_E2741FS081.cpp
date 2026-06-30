@@ -92,34 +92,55 @@ void GxEPD2_074c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
   _sendIndexData(0x12, data3, 3); // RAM_RW
   
   // Send black frame (frame1)
+  // Rotate: logical 800x480 -> physical 480x800
+  // physical_row (py) = logical_x (lx), physical_col (px) = HEIGHT-1-logical_y (ly)
   _writeCommand(0x10);
   _startTransfer();
-  for (int16_t i = 0; i < int16_t(HEIGHT); i++)
+  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
   {
-    for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
+    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
-      uint8_t data = 0xFF; // white
+      uint8_t out = 0xFF; // default white
+      int16_t lx = py; // logical x = physical row
       if (black)
       {
-        if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h))
+        if (lx >= x && lx < x + w)
         {
-          uint32_t idx = mirror_y ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb : (j - x) / 8 + uint32_t(i - y) * wb;
-          if (pgm)
+          int16_t bx = lx - x;
+          uint8_t src_byte_col = bx / 8;
+          uint8_t src_bit_mask = 0x80 >> (bx & 7);
+          out = 0;
+          for (int16_t bit = 0; bit < 8; bit++)
           {
+            int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit);
+            if (ly >= y && ly < y + h)
+            {
+              int16_t by = mirror_y ? (h - 1 - (ly - y)) : (ly - y);
+              uint32_t idx = src_byte_col + uint32_t(by) * wb;
+              uint8_t src;
+              if (pgm)
+              {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&black[idx]);
+                src = pgm_read_byte(&black[idx]);
 #else
-            data = black[idx];
+                src = black[idx];
 #endif
+              }
+              else
+              {
+                src = black[idx];
+              }
+              if (invert) src = ~src;
+              if (src & src_bit_mask) out |= (0x80 >> bit);
+            }
+            else
+            {
+              out |= (0x80 >> bit); // white for out-of-bounds
+            }
           }
-          else
-          {
-            data = black[idx];
-          }
-          if (invert) data = ~data;
         }
       }
-      _transfer(~data); // invert for hardware (bit=1 is black on this display)
+      _transfer(~out); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -130,32 +151,51 @@ void GxEPD2_074c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
   // Send color frame (frame2)
   _writeCommand(0x11);
   _startTransfer();
-  for (int16_t i = 0; i < int16_t(HEIGHT); i++)
+  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
   {
-    for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
+    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
-      uint8_t data = 0xFF; // no red in GxEPD2 convention
+      uint8_t out = 0xFF; // no red in GxEPD2 convention
+      int16_t lx = py;
       if (color)
       {
-        if ((j >= x) && (j < x + w) && (i >= y) && (i < y + h))
+        if (lx >= x && lx < x + w)
         {
-          uint32_t idx = mirror_y ? (j - x) / 8 + uint32_t((h - 1 - (i - y))) * wb : (j - x) / 8 + uint32_t(i - y) * wb;
-          if (pgm)
+          int16_t bx = lx - x;
+          uint8_t src_byte_col = bx / 8;
+          uint8_t src_bit_mask = 0x80 >> (bx & 7);
+          out = 0;
+          for (int16_t bit = 0; bit < 8; bit++)
           {
+            int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit);
+            if (ly >= y && ly < y + h)
+            {
+              int16_t by = mirror_y ? (h - 1 - (ly - y)) : (ly - y);
+              uint32_t idx = src_byte_col + uint32_t(by) * wb;
+              uint8_t src;
+              if (pgm)
+              {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&color[idx]);
+                src = pgm_read_byte(&color[idx]);
 #else
-            data = color[idx];
+                src = color[idx];
 #endif
+              }
+              else
+              {
+                src = color[idx];
+              }
+              if (invert) src = ~src;
+              if (src & src_bit_mask) out |= (0x80 >> bit);
+            }
+            else
+            {
+              out |= (0x80 >> bit); // no color for out-of-bounds
+            }
           }
-          else
-          {
-            data = color[idx];
-          }
-          if (invert) data = ~data;
         }
       }
-      _transfer(~data); // invert for hardware (bit=1 is red on this display)
+      _transfer(~out); // invert for hardware (bit=1 is red on this display)
     }
   }
   _endTransfer();
@@ -205,34 +245,46 @@ void GxEPD2_074c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
   _sendIndexData(0x12, data3, 3); // RAM_RW
   
   // Send black frame
+  // Rotate: logical 800x480 -> physical 480x800
   _writeCommand(0x10);
   _startTransfer();
-  for (int16_t i = 0; i < int16_t(HEIGHT); i++)
+  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
   {
-    for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
+    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
-      uint8_t data = 0xFF;
-      if (black)
+      uint8_t out = 0xFF; // default white
+      int16_t lx = py;
+      for (int16_t bit = 0; bit < 8; bit++)
       {
-        if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h))
+        int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit);
+        if (black && lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
         {
-          uint32_t idx = mirror_y ? (x_part + j - x1) / 8 + uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
+          int16_t bx = x_part + lx - x1;
+          int16_t by = y_part + ly - y1;
+          if (mirror_y) by = h_bitmap - 1 - by;
+          uint32_t idx = bx / 8 + uint32_t(by) * wb_bitmap;
+          uint8_t src_bit_mask = 0x80 >> (bx & 7);
+          uint8_t src;
           if (pgm)
           {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&black[idx]);
+            src = pgm_read_byte(&black[idx]);
 #else
-            data = black[idx];
+            src = black[idx];
 #endif
           }
           else
           {
-            data = black[idx];
+            src = black[idx];
           }
-          if (invert) data = ~data;
+          if (invert) src = ~src;
+          if (src & src_bit_mask)
+            out = (out & ~(0x80 >> bit)) | (0x80 >> bit);
+          else
+            out &= ~(0x80 >> bit);
         }
       }
-      _transfer(~data); // invert for hardware (bit=1 is black on this display)
+      _transfer(~out); // invert for hardware (bit=1 is black on this display)
     }
   }
   _endTransfer();
@@ -243,32 +295,43 @@ void GxEPD2_074c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
   // Send color frame
   _writeCommand(0x11);
   _startTransfer();
-  for (int16_t i = 0; i < int16_t(HEIGHT); i++)
+  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
   {
-    for (int16_t j = 0; j < int16_t(WIDTH); j += 8)
+    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
     {
-      uint8_t data = 0xFF;
-      if (color)
+      uint8_t out = 0xFF; // default no color
+      int16_t lx = py;
+      for (int16_t bit = 0; bit < 8; bit++)
       {
-        if ((j >= x1) && (j < x1 + w) && (i >= y1) && (i < y1 + h))
+        int16_t ly = (int16_t(HEIGHT) - 1) - (px + bit);
+        if (color && lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
         {
-          uint32_t idx = mirror_y ? (x_part + j - x1) / 8 + uint32_t((h_bitmap - 1 - (y_part + i - y1))) * wb_bitmap : (x_part + j - x1) / 8 + uint32_t(y_part + i - y1) * wb_bitmap;
+          int16_t bx = x_part + lx - x1;
+          int16_t by = y_part + ly - y1;
+          if (mirror_y) by = h_bitmap - 1 - by;
+          uint32_t idx = bx / 8 + uint32_t(by) * wb_bitmap;
+          uint8_t src_bit_mask = 0x80 >> (bx & 7);
+          uint8_t src;
           if (pgm)
           {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            data = pgm_read_byte(&color[idx]);
+            src = pgm_read_byte(&color[idx]);
 #else
-            data = color[idx];
+            src = color[idx];
 #endif
           }
           else
           {
-            data = color[idx];
+            src = color[idx];
           }
-          if (invert) data = ~data;
+          if (invert) src = ~src;
+          if (src & src_bit_mask)
+            out = (out & ~(0x80 >> bit)) | (0x80 >> bit);
+          else
+            out &= ~(0x80 >> bit);
         }
       }
-      _transfer(~data); // invert for hardware (bit=1 is red on this display)
+      _transfer(~out); // invert for hardware (bit=1 is red on this display)
     }
   }
   _endTransfer();

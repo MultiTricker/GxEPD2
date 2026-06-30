@@ -20,9 +20,11 @@ class GxEPD2_074c_E2741FS081 : public GxEPD2_EPD
 {
   public:
     // attributes
-    static const uint16_t WIDTH = 480;
+    static const uint16_t WIDTH = 800;
     static const uint16_t WIDTH_VISIBLE = WIDTH;
-    static const uint16_t HEIGHT = 800;
+    static const uint16_t HEIGHT = 480;
+    static const uint16_t PHYS_WIDTH = 480;  // physical panel width
+    static const uint16_t PHYS_HEIGHT = 800; // physical panel height
     static const GxEPD2::Panel panel = GxEPD2::E2741FS081;
     static const bool hasColor = true;
     static const bool hasPartialUpdate = false;
@@ -72,7 +74,7 @@ class GxEPD2_074c_E2741FS081 : public GxEPD2_EPD
     void _displayRefreshAndPowerDown();
   private:
     bool _paged;
-    static const uint32_t _frame_size = uint32_t(WIDTH) * uint32_t(HEIGHT) / 8; // 48000 bytes per frame
+    static const uint32_t _frame_size = uint32_t(PHYS_WIDTH) * uint32_t(PHYS_HEIGHT) / 8; // 48000 bytes per frame
 };
 
 #endif
