@@ -16,7 +16,6 @@
 GxEPD2_740c_E2741FS081::GxEPD2_740c_E2741FS081(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
   GxEPD2_EPD(cs, dc, rst, busy, LOW, 50000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
 {
-  _paged = false;
 }
 
 void GxEPD2_740c_E2741FS081::clearScreen(uint8_t value)
@@ -38,14 +37,8 @@ void GxEPD2_740c_E2741FS081::writeScreenBuffer(uint8_t value)
 void GxEPD2_740c_E2741FS081::writeScreenBuffer(uint8_t black_value, uint8_t color_value)
 {
   if (!_init_display_done) _InitDisplay();
-  // Send configuration commands
-  uint8_t data1[] = {0x00, 0x3b, 0x00, 0x00, 0x1f, 0x03};
-  _sendIndexData(0x13, data1, 6); // DUW
-  uint8_t data2[] = {0x00, 0x3b, 0x00, 0xc9};
-  _sendIndexData(0x90, data2, 4); // DRFW
-  uint8_t data3[] = {0x3b, 0x00, 0x14};
-  _sendIndexData(0x12, data3, 3); // RAM_RW
-  // Send black frame (frame1) - hardware: bit=1 for black, bit=0 for white (inverted from GxEPD2)
+  _writeConfiguration(); // DUW, DRFW, RAM_RW
+  // send first frame (black plane) - hardware: bit=1 for black (inverted from GxEPD2)
   _writeCommand(0x10);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
@@ -53,9 +46,9 @@ void GxEPD2_740c_E2741FS081::writeScreenBuffer(uint8_t black_value, uint8_t colo
     _transfer(~black_value);
   }
   _endTransfer();
-  // Send RAM_RW again for second frame
-  _sendIndexData(0x12, data3, 3);
-  // Send color frame (frame2) - hardware: bit=1 for red, bit=0 for no-red (inverted from GxEPD2)
+  uint8_t ram_rw[] = {0x3b, 0x00, 0x14};
+  _sendIndexData(0x12, ram_rw, 3); // RAM_RW
+  // send second frame (color plane) - hardware: bit=1 for red (inverted from GxEPD2)
   _writeCommand(0x11);
   _startTransfer();
   for (uint32_t i = 0; i < _frame_size; i++)
@@ -77,36 +70,31 @@ void GxEPD2_740c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if (!_init_display_done) _InitDisplay();
   if (_initial_write) writeScreenBuffer();
-  
   int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
   x -= x % 8; // byte boundary
   w = wb * 8; // byte boundary
   if ((w <= 0) || (h <= 0)) return;
-  
-  // Send configuration commands
-  uint8_t data1[] = {0x00, 0x3b, 0x00, 0x00, 0x1f, 0x03};
-  _sendIndexData(0x13, data1, 6); // DUW
-  uint8_t data2[] = {0x00, 0x3b, 0x00, 0xc9};
-  _sendIndexData(0x90, data2, 4); // DRFW
-  uint8_t data3[] = {0x3b, 0x00, 0x14};
-  _sendIndexData(0x12, data3, 3); // RAM_RW
-  
-  // Send black frame (frame1)
-  // Rotate: logical 800x480 -> physical 480x800 (with 180° rotation)
-  // lx = (WIDTH-1) - py, ly = px + bit
-  _writeCommand(0x10);
-  _startTransfer();
-  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
+  _writeConfiguration(); // DUW, DRFW, RAM_RW
+  // send both frames with rotation: logical 800x480 -> physical 480x800 (with 180° rotation)
+  for (uint16_t frame = 0; frame < 2; frame++)
   {
-    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
+    const uint8_t* source = frame ? color : black;
+    if (frame)
     {
-      uint8_t out = 0xFF; // default white
-      int16_t lx = (int16_t(WIDTH) - 1) - py; // logical x = (799 - physical row)
-      if (black)
+      uint8_t ram_rw[] = {0x3b, 0x00, 0x14};
+      _sendIndexData(0x12, ram_rw, 3); // RAM_RW
+    }
+    _writeCommand(frame ? 0x11 : 0x10);
+    _startTransfer();
+    for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
+    {
+      for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
       {
-        if (lx >= x && lx < x + w)
+        uint8_t out = 0xFF; // default white / no red
+        int16_t lx = (int16_t(WIDTH) - 1) - py; // logical x
+        if (source && lx >= x && lx < x + w)
         {
-          int16_t bx = lx - x;
+          int16_t bx = lx - x; // bitmap x offset
           uint8_t src_byte_col = bx / 8;
           uint8_t src_bit_mask = 0x80 >> (bx & 7);
           out = 0;
@@ -118,87 +106,26 @@ void GxEPD2_740c_E2741FS081::writeImage(const uint8_t* black, const uint8_t* col
               int16_t by = mirror_y ? (h - 1 - (ly - y)) : (ly - y);
               uint32_t idx = src_byte_col + uint32_t(by) * wb;
               uint8_t src;
-              if (pgm)
-              {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-                src = pgm_read_byte(&black[idx]);
+              src = pgm ? pgm_read_byte(&source[idx]) : source[idx];
 #else
-                src = black[idx];
+              src = source[idx];
 #endif
-              }
-              else
-              {
-                src = black[idx];
-              }
               if (invert) src = ~src;
               if (src & src_bit_mask) out |= (0x80 >> bit);
             }
             else
             {
-              out |= (0x80 >> bit); // white for out-of-bounds
+              out |= (0x80 >> bit); // white / no red for out-of-bounds
             }
           }
         }
+        _transfer(~out); // invert for hardware (bit=1 is black resp. red)
       }
-      _transfer(~out); // invert for hardware (bit=1 is black on this display)
     }
+    _endTransfer();
   }
-  _endTransfer();
-  
-  // Send RAM_RW again for second frame
-  _sendIndexData(0x12, data3, 3);
-  
-  // Send color frame (frame2)
-  _writeCommand(0x11);
-  _startTransfer();
-  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
-  {
-    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
-    {
-      uint8_t out = 0xFF; // no red in GxEPD2 convention
-      int16_t lx = (int16_t(WIDTH) - 1) - py;
-      if (color)
-      {
-        if (lx >= x && lx < x + w)
-        {
-          int16_t bx = lx - x;
-          uint8_t src_byte_col = bx / 8;
-          uint8_t src_bit_mask = 0x80 >> (bx & 7);
-          out = 0;
-          for (int16_t bit = 0; bit < 8; bit++)
-          {
-            int16_t ly = px + bit;
-            if (ly >= y && ly < y + h)
-            {
-              int16_t by = mirror_y ? (h - 1 - (ly - y)) : (ly - y);
-              uint32_t idx = src_byte_col + uint32_t(by) * wb;
-              uint8_t src;
-              if (pgm)
-              {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-                src = pgm_read_byte(&color[idx]);
-#else
-                src = color[idx];
-#endif
-              }
-              else
-              {
-                src = color[idx];
-              }
-              if (invert) src = ~src;
-              if (src & src_bit_mask) out |= (0x80 >> bit);
-            }
-            else
-            {
-              out |= (0x80 >> bit); // no color for out-of-bounds
-            }
-          }
-        }
-      }
-      _transfer(~out); // invert for hardware (bit=1 is red on this display)
-    }
-  }
-  _endTransfer();
+  _initial_write = false;
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
@@ -214,11 +141,9 @@ void GxEPD2_740c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
   if (!black && !color) return;
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if (!_init_display_done) _InitDisplay();
-  if (_initial_write) writeScreenBuffer();
   if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0)) return;
   if ((x_part < 0) || (x_part >= w_bitmap)) return;
   if ((y_part < 0) || (y_part >= h_bitmap)) return;
-  
   int16_t wb_bitmap = (w_bitmap + 7) / 8; // width bytes, bitmaps are padded
   x_part -= x_part % 8; // byte boundary
   w = w_bitmap - x_part < w ? w_bitmap - x_part : w; // limit
@@ -235,106 +160,56 @@ void GxEPD2_740c_E2741FS081::writeImagePart(const uint8_t* black, const uint8_t*
   w1 -= dx;
   h1 -= dy;
   if ((w1 <= 0) || (h1 <= 0)) return;
-  
-  // Send configuration commands
-  uint8_t data1[] = {0x00, 0x3b, 0x00, 0x00, 0x1f, 0x03};
-  _sendIndexData(0x13, data1, 6); // DUW
-  uint8_t data2[] = {0x00, 0x3b, 0x00, 0xc9};
-  _sendIndexData(0x90, data2, 4); // DRFW
-  uint8_t data3[] = {0x3b, 0x00, 0x14};
-  _sendIndexData(0x12, data3, 3); // RAM_RW
-  
-  // Send black frame
-  // Rotate: logical 800x480 -> physical 480x800 (with 180° rotation)
-  _writeCommand(0x10);
-  _startTransfer();
-  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
+  _writeConfiguration(); // DUW, DRFW, RAM_RW
+  // send both frames with rotation: logical 800x480 -> physical 480x800 (with 180° rotation)
+  for (uint16_t frame = 0; frame < 2; frame++)
   {
-    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
+    const uint8_t* source = frame ? color : black;
+    if (frame)
     {
-      uint8_t out = 0xFF; // default white
-      int16_t lx = (int16_t(WIDTH) - 1) - py;
-      for (int16_t bit = 0; bit < 8; bit++)
-      {
-        int16_t ly = px + bit;
-        if (black && lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
-        {
-          int16_t bx = x_part + lx - x1;
-          int16_t by = y_part + ly - y1;
-          if (mirror_y) by = h_bitmap - 1 - by;
-          uint32_t idx = bx / 8 + uint32_t(by) * wb_bitmap;
-          uint8_t src_bit_mask = 0x80 >> (bx & 7);
-          uint8_t src;
-          if (pgm)
-          {
-#if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            src = pgm_read_byte(&black[idx]);
-#else
-            src = black[idx];
-#endif
-          }
-          else
-          {
-            src = black[idx];
-          }
-          if (invert) src = ~src;
-          if (src & src_bit_mask)
-            out = (out & ~(0x80 >> bit)) | (0x80 >> bit);
-          else
-            out &= ~(0x80 >> bit);
-        }
-      }
-      _transfer(~out); // invert for hardware (bit=1 is black on this display)
+      uint8_t ram_rw[] = {0x3b, 0x00, 0x14};
+      _sendIndexData(0x12, ram_rw, 3); // RAM_RW
     }
-  }
-  _endTransfer();
-  
-  // Send RAM_RW again
-  _sendIndexData(0x12, data3, 3);
-  
-  // Send color frame
-  _writeCommand(0x11);
-  _startTransfer();
-  for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
-  {
-    for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
+    _writeCommand(frame ? 0x11 : 0x10);
+    _startTransfer();
+    for (int16_t py = 0; py < int16_t(PHYS_HEIGHT); py++)
     {
-      uint8_t out = 0xFF; // default no color
-      int16_t lx = (int16_t(WIDTH) - 1) - py;
-      for (int16_t bit = 0; bit < 8; bit++)
+      for (int16_t px = 0; px < int16_t(PHYS_WIDTH); px += 8)
       {
-        int16_t ly = px + bit;
-        if (color && lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
+        uint8_t out = 0xFF; // default white / no red
+        int16_t lx = (int16_t(WIDTH) - 1) - py; // logical x
+        for (int16_t bit = 0; bit < 8; bit++)
         {
-          int16_t bx = x_part + lx - x1;
-          int16_t by = y_part + ly - y1;
-          if (mirror_y) by = h_bitmap - 1 - by;
-          uint32_t idx = bx / 8 + uint32_t(by) * wb_bitmap;
-          uint8_t src_bit_mask = 0x80 >> (bx & 7);
-          uint8_t src;
-          if (pgm)
+          int16_t ly = px + bit; // logical y from physical col
+          if (source && lx >= x1 && lx < x1 + w1 && ly >= y1 && ly < y1 + h1)
           {
+            int16_t bx = x_part + dx + (lx - x1); // bitmap x
+            int16_t by = y_part + dy + (ly - y1); // bitmap y
+            if (mirror_y) by = h_bitmap - 1 - by;
+            if ((bx >= 0) && (bx < w_bitmap) && (by >= 0) && (by < h_bitmap))
+            {
+              uint32_t sidx = uint32_t(by) * uint32_t(wb_bitmap) + uint32_t(bx / 8);
+              uint8_t src_bit_mask = 0x80 >> (bx & 7);
+              uint8_t src;
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-            src = pgm_read_byte(&color[idx]);
+              src = pgm ? pgm_read_byte(&source[sidx]) : source[sidx];
 #else
-            src = color[idx];
+              src = source[sidx];
 #endif
+              if (invert) src = ~src;
+              if (src & src_bit_mask)
+                out |= (0x80 >> bit); // set bit (pixel set)
+              else
+                out &= ~(0x80 >> bit); // clear bit (pixel clear)
+            }
           }
-          else
-          {
-            src = color[idx];
-          }
-          if (invert) src = ~src;
-          if (src & src_bit_mask)
-            out = (out & ~(0x80 >> bit)) | (0x80 >> bit);
-          else
-            out &= ~(0x80 >> bit);
         }
+        _transfer(~out); // invert for hardware (bit=1 is black resp. red)
       }
-      _transfer(~out); // invert for hardware (bit=1 is red on this display)
     }
+    _endTransfer();
   }
-  _endTransfer();
+  _initial_write = false;
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
@@ -378,6 +253,7 @@ void GxEPD2_740c_E2741FS081::drawNative(const uint8_t* data1, const uint8_t* dat
 
 void GxEPD2_740c_E2741FS081::refresh(bool partial_update_mode)
 {
+  // frames are already in controller RAM, streamed by writeImage/writeScreenBuffer
   // COG initialization
   _cogInitialization();
   // DC/DC soft-start
@@ -407,19 +283,34 @@ void GxEPD2_740c_E2741FS081::hibernate()
   }
 }
 
-void GxEPD2_740c_E2741FS081::setPaged()
+void GxEPD2_740c_E2741FS081::_writeConfiguration()
 {
-  _paged = true;
-  _InitDisplay();
+  uint8_t duw[] = {0x00, 0x3b, 0x00, 0x00, 0x1f, 0x03};
+  _sendIndexData(0x13, duw, 6); // DUW
+  uint8_t drfw[] = {0x00, 0x3b, 0x00, 0xc9};
+  _sendIndexData(0x90, drfw, 4); // DRFW
+  uint8_t ram_rw[] = {0x3b, 0x00, 0x14};
+  _sendIndexData(0x12, ram_rw, 3); // RAM_RW
 }
 
-void GxEPD2_740c_E2741FS081::_sendIndexData(uint8_t index, const uint8_t* data, uint16_t len)
+void GxEPD2_740c_E2741FS081::_sendIndexData(uint8_t index, const uint8_t* data, uint32_t len)
 {
-  _writeCommand(index);
-  for (uint16_t i = 0; i < len; i++)
+  // Match LaskaKit EPDBus protocol: single SPI transaction, separate CS frames for cmd and data
+  _pSPIx->beginTransaction(_spi_settings);
+  // Command frame: CS LOW, DC LOW, send index, CS HIGH
+  if (_cs >= 0) digitalWrite(_cs, LOW);
+  if (_dc >= 0) digitalWrite(_dc, LOW);
+  _pSPIx->transfer(index);
+  if (_cs >= 0) digitalWrite(_cs, HIGH);
+  // Data frame: CS LOW, DC HIGH, send all data bytes, CS HIGH
+  if (_cs >= 0) digitalWrite(_cs, LOW);
+  if (_dc >= 0) digitalWrite(_dc, HIGH);
+  for (uint32_t i = 0; i < len; i++)
   {
-    _writeData(data[i]);
+    _pSPIx->transfer(data[i]);
   }
+  if (_cs >= 0) digitalWrite(_cs, HIGH);
+  _pSPIx->endTransaction();
 }
 
 void GxEPD2_740c_E2741FS081::_PowerOn()
@@ -457,6 +348,7 @@ void GxEPD2_740c_E2741FS081::_InitDisplay()
 {
   if (_rst >= 0)
   {
+    delay(200);
     digitalWrite(_rst, HIGH);
     delay(20);
     digitalWrite(_rst, LOW);

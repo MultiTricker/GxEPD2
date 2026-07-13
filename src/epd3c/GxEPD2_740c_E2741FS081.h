@@ -63,17 +63,16 @@ class GxEPD2_740c_E2741FS081 : public GxEPD2_EPD
     void refresh(int16_t x, int16_t y, int16_t w, int16_t h); // screen refresh from controller memory, partial screen
     void powerOff(); // turns off generation of panel driving voltages, avoids screen fading over time
     void hibernate(); // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
-    void setPaged(); // for paged drawing support
   private:
     void _PowerOn();
     void _PowerOff();
     void _InitDisplay();
-    void _sendIndexData(uint8_t index, const uint8_t* data, uint16_t len);
+    void _writeConfiguration();
+    void _sendIndexData(uint8_t index, const uint8_t* data, uint32_t len);
     void _cogInitialization();
     void _dcDcSoftStart();
     void _displayRefreshAndPowerDown();
   private:
-    bool _paged;
     static const uint32_t _frame_size = uint32_t(PHYS_WIDTH) * uint32_t(PHYS_HEIGHT) / 8; // 48000 bytes per frame
 };
 
